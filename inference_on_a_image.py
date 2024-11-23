@@ -3,7 +3,7 @@ import os
 import sys
 import numpy as np
 import torch
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 import clip
 import transforms as T
 from models import build_model
@@ -45,7 +45,7 @@ def text_encoding(instance_names, keypoints_names, model, device):
 
 
 
-def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output_dir):
+def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output):
     num_kpts = len(keypoint_text_prompt)
     H, W = tgt["size"]
     fig = plt.figure(frameon=False)
@@ -161,8 +161,8 @@ def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output_
     color_box = [0.53, 0.81, 0.92]
     polygons = []
     boxes = []
-    for box in tgt['boxes'].cpu():
-        unnormbbox = box * torch.Tensor([W, H, W, H])
+    for box in tgt['boxes']:
+        unnormbbox = box * np.array([W, H, W, H])
         unnormbbox[:2] -= unnormbbox[2:] / 2
         [bbox_x, bbox_y, bbox_w, bbox_h] = unnormbbox.tolist()
         boxes.append([bbox_x, bbox_y, bbox_w, bbox_h])
@@ -186,7 +186,7 @@ def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output_
                 sks = sks - 1
 
         for idx, ann in enumerate(tgt['keypoints']):
-            kp = np.array(ann.cpu())
+            kp = np.array(ann)
             Z = kp[:num_kpts*2] * np.array([W, H] * num_kpts)
             x = Z[0::2]
             y = Z[1::2]
@@ -202,7 +202,7 @@ def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output_
                 c_kpt = color_kpt[i]
                 plt.plot(x[i], y[i], 'o', markersize=4, markerfacecolor=c_kpt, markeredgecolor='k', markeredgewidth=0.5)
     ax.set_axis_off()
-    savename = os.path.join(output_dir, "pred.jpg")
+    savename = output
     print("savename: {}".format(savename))
     os.makedirs(os.path.dirname(savename), exist_ok=True)
     plt.savefig(savename, dpi=dpi)
@@ -214,6 +214,10 @@ def plot_on_image(image_pil, tgt, keypoint_skeleton,keypoint_text_prompt,output_
 def load_image(image_path):
     # load image
     image_pil = Image.open(image_path).convert("RGB")  # load image
+    # if the width is smaller than the height,rotate the image
+    image_pil = ImageOps.exif_transpose(image_pil)
+        
+    print("---------------------")
 
     transform = T.Compose(
         [
@@ -357,5 +361,7 @@ if __name__ == "__main__":
         "size": [size[1], size[0]]
     }
     # import ipdb; ipdb.set_trace()
+    print("pred_dict: {}".format(pred_dict))
+
     plot_on_image(image_pil, pred_dict,keypoint_skeleton,keypoint_text_prompt,output_dir)
 
